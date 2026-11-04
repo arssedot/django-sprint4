@@ -1,0 +1,37 @@
+name: Import tested course projects
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/import-projects.yml'
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack source code
+        shell: python
+        run: |
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          projects = [('Blogicum_sprint6.zip', Path('.')), ('Blogicum_sprint5.zip', Path('sprint5'))]
+          for archive, destination in projects:
+              with ZipFile(archive) as z:
+                  for member in z.infolist():
+                      parts = PurePosixPath(member.filename).parts[1:]
+                      if not parts or member.is_dir():
+                          continue
+                      if '..' in parts:
+                          raise ValueError('Unsafe archive path')
+                      target = destination.joinpath(*parts)
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      target.write_bytes(z.read(member))
+      - name: Commit imported sources
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet || git commit -m 'Import tested Blogicum source code for sprints 5 and 6'
+          git push
